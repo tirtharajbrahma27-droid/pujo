@@ -25,6 +25,7 @@
 
             --success-color: #28a745;
             --danger-color: #e5534b;
+            --warning-color: #ffc107;
         }
 
         /* Default to light mode variables */
@@ -103,7 +104,7 @@
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border-color); }
         th { font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); }
         td input[type="number"] { width: 80px; }
-        .action-cell { width: 120px; text-align: right; }
+        .action-cell { width: 150px; text-align: right; }
 
         /* Forms & Inputs */
         .form-card { background-color: transparent; border: 1px solid var(--border-color); padding: 1.5rem; border-radius: 8px; margin-top: 1.5rem; }
@@ -115,8 +116,10 @@
         button.primary-btn { padding: 12px 15px; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 500; transition: all 0.2s; background-color: var(--primary-color); }
         button.primary-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
         .checkbox-container { display: flex; align-items: center; gap: 8px; }
-        .delete-btn, .action-btn { background-color: var(--card-bg); color: var(--text-muted); border: 1px solid var(--border-color); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
+        .delete-btn, .edit-btn, .action-btn { background-color: var(--card-bg); color: var(--text-muted); border: 1px solid var(--border-color); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; margin-left: 5px; }
         .delete-btn:hover { background-color: var(--danger-color); color: white; border-color: var(--danger-color); }
+        .edit-btn { border-color: var(--warning-color); color: var(--warning-color); }
+        .edit-btn:hover { background-color: var(--warning-color); color: white; }
         .action-btn { border-color: var(--success-color); color: var(--success-color); }
         .action-btn:hover { background-color: var(--success-color); color: white; }
 
@@ -132,6 +135,11 @@
         .modal .cancel-btn { background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); background-image: none; }
         .modal-box .danger-btn { background-image: none; background-color: var(--danger-color); }
 
+        /* Edit Modal Specific */
+        #edit-modal .modal-box { max-width: 500px; text-align: left; }
+        #edit-modal .form-grid { margin-top: 1.5rem; }
+        #edit-modal .form-grid label { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.3rem; }
+
         /* Slide-down Password Modal */
         #password-modal { align-items: flex-start; padding-top: 5vh; }
         #password-modal .modal-box { border-radius: 0 0 12px 12px; border-top: none; }
@@ -141,7 +149,7 @@
         .password-box input { margin: 0; }
 
         /* Centered Modals */
-        #confirm-modal, #alert-modal, #reset-confirm-modal, #developer-modal { align-items: center; }
+        #confirm-modal, #alert-modal, #reset-confirm-modal, #developer-modal, #edit-modal { align-items: center; }
 
         /* Lock State */
         .locked .form-card, .locked .editable, .locked .action-cell, .locked .reset-btn { display: none; }
@@ -187,6 +195,7 @@
             #dashboard, .payment-summary-container { grid-template-columns: 1fr; }
             footer { flex-direction: column; gap: 0.5rem; }
             .dev-content { flex-direction: column; }
+            .action-cell { width: 180px; }
         }
     </style>
 </head>
@@ -240,6 +249,18 @@
             <p id="alert-message">This is an alert.</p>
             <div class="btn-group" style="justify-content: center;">
                 <button id="alert-ok-btn" class="primary-btn" style="flex-grow: 0; padding: 10px 40px;">OK</button>
+            </div>
+        </div>
+    </div>
+    <div id="edit-modal" class="modal">
+        <div class="modal-box edit-box">
+            <h3 id="edit-title">Edit Item</h3>
+            <div class="form-grid" id="edit-form-content">
+                <!-- Dynamic content will be inserted here -->
+            </div>
+            <div class="btn-group">
+                <button id="edit-cancel-btn" class="primary-btn cancel-btn">Cancel</button>
+                <button id="edit-save-btn" class="primary-btn">Save Changes</button>
             </div>
         </div>
     </div>
@@ -307,6 +328,7 @@
         let state = { ...initialState };
         let actionToConfirm = null; 
         let previousMetrics = {}; 
+        let currentEditItem = null;
 
         // --- DOM ELEMENTS ---
         const body = document.body;
@@ -315,6 +337,7 @@
         const passwordInput = document.getElementById('password-input');
         const confirmModal = document.getElementById('confirm-modal');
         const alertModal = document.getElementById('alert-modal');
+        const editModal = document.getElementById('edit-modal');
         const resetConfirmModal = document.getElementById('reset-confirm-modal');
         const resetPasswordInput = document.getElementById('reset-password-input');
         const cloudStatusEl = document.getElementById('cloud-status');
@@ -430,7 +453,7 @@
             state.investors.forEach((investor, index) => {
                 const sharePercent = metrics.totalInvestment > 0 ? (investor.amount / metrics.totalInvestment) * 100 : 0;
                 const profitLossShare = metrics.profitLoss * (sharePercent / 100);
-                listEl.innerHTML += `<tr><td>${investor.name}</td><td>${investor.amount.toFixed(2)}</td><td>${sharePercent.toFixed(2)}%</td><td class="${profitLossShare >= 0 ? 'profit' : 'loss'}">${profitLossShare.toFixed(2)}</td><td class="action-cell"><button class="delete-btn" data-type="investor" data-index="${index}">Delete</button></td></tr>`;
+                listEl.innerHTML += `<tr><td>${investor.name}</td><td>${investor.amount.toFixed(2)}</td><td>${sharePercent.toFixed(2)}%</td><td class="${profitLossShare >= 0 ? 'profit' : 'loss'}">${profitLossShare.toFixed(2)}</td><td class="action-cell"><button class="edit-btn" data-type="investor" data-index="${index}">Edit</button><button class="delete-btn" data-type="investor" data-index="${index}">Delete</button></td></tr>`;
             });
         }
         function renderProducts() {
@@ -438,7 +461,7 @@
                 const listEl = document.getElementById(elId); listEl.innerHTML = '';
                 (state.products[cat] || []).forEach((p, index) => {
                     const profitPercent = p.costPrice > 0 ? ((p.sellingPrice - p.costPrice) / p.costPrice) * 100 : 0;
-                    listEl.innerHTML += `<tr><td>${p.name}</td><td>${p.stock}</td><td>${p.costPrice.toFixed(2)}</td><td>${p.sellingPrice.toFixed(2)}</td><td>${profitPercent.toFixed(2)}%</td><td class="action-cell"><button class="delete-btn" data-type="product" data-category="${cat}" data-index="${index}">Delete</button></td></tr>`;
+                    listEl.innerHTML += `<tr><td>${p.name}</td><td>${p.stock}</td><td>${p.costPrice.toFixed(2)}</td><td>${p.sellingPrice.toFixed(2)}</td><td>${profitPercent.toFixed(2)}%</td><td class="action-cell"><button class="edit-btn" data-type="product" data-category="${cat}" data-index="${index}">Edit</button><button class="delete-btn" data-type="product" data-category="${cat}" data-index="${index}">Delete</button></td></tr>`;
                 });
             };
             renderList('snacks', 'snacks-product-list'); renderList('iceCreams', 'icecream-product-list');
@@ -460,14 +483,17 @@
             document.getElementById('payment-summary-paid').textContent = totalPaid.toFixed(2);
             document.getElementById('payment-summary-expenditure').textContent = (totalDue + totalPaid).toFixed(2);
             document.querySelectorAll('#payment-section tbody').forEach(tbody => tbody.innerHTML = '');
-            state.payments.forEach(p => {
+            state.payments.forEach((p, index) => {
                 const cat = p.category.toLowerCase().replace('-', '');
                 const qtyCell = p.quantity ? p.quantity : '-';
                 const rowHtml = `<td>${p.date}</td><td>${p.description}</td><td>${qtyCell}</td><td>${p.amount.toFixed(2)}</td>`;
                 const statusCell = `<span style="color:${p.status === 'paid' ? 'var(--success-color)' : 'var(--danger-color)'}">${p.status.toUpperCase()}</span>`;
-                if (p.status === 'due') { document.getElementById(`${cat}-due-payment-list`).innerHTML += `<tr>${rowHtml}<td class="action-cell"><button class="action-btn" data-id="${p.id}">Mark Paid</button> <button class="delete-btn" data-type="payment" data-id="${p.id}">Del</button></td></tr>`; } 
-                else { document.getElementById(`${cat}-paid-payment-list`).innerHTML += `<tr>${rowHtml}<td class="action-cell"><button class="delete-btn" data-type="payment" data-id="${p.id}">Delete</button></td></tr>`; }
-                document.getElementById(`${cat}-all-payment-list`).innerHTML += `<tr>${rowHtml}<td>${statusCell}</td><td class="action-cell"><button class="delete-btn" data-type="payment" data-id="${p.id}">Delete</button></td></tr>`;
+                if (p.status === 'due') { 
+                    document.getElementById(`${cat}-due-payment-list`).innerHTML += `<tr>${rowHtml}<td class="action-cell"><button class="action-btn" data-id="${p.id}">Mark Paid</button><button class="edit-btn" data-type="payment" data-index="${index}">Edit</button><button class="delete-btn" data-type="payment" data-id="${p.id}">Del</button></td></tr>`; 
+                } else { 
+                    document.getElementById(`${cat}-paid-payment-list`).innerHTML += `<tr>${rowHtml}<td class="action-cell"><button class="edit-btn" data-type="payment" data-index="${index}">Edit</button><button class="delete-btn" data-type="payment" data-id="${p.id}">Delete</button></td></tr>`; 
+                }
+                document.getElementById(`${cat}-all-payment-list`).innerHTML += `<tr>${rowHtml}<td>${statusCell}</td><td class="action-cell"><button class="edit-btn" data-type="payment" data-index="${index}">Edit</button><button class="delete-btn" data-type="payment" data-id="${p.id}">Delete</button></td></tr>`;
             });
         }
         function renderDeveloperInfo() {
@@ -498,6 +524,88 @@
             alertModal.classList.add('show');
         }
 
+        // --- Edit Modal Functions ---
+        function openEditModal(type, data) {
+            currentEditItem = { type, ...data };
+            const editTitle = document.getElementById('edit-title');
+            const editContent = document.getElementById('edit-form-content');
+            
+            let formHtml = '';
+            if (type === 'investor') {
+                editTitle.textContent = 'Edit Investor';
+                formHtml = `
+                    <div><label>Name</label><input type="text" id="edit-investor-name" value="${data.item.name}"></div>
+                    <div><label>Investment Amount</label><input type="number" id="edit-investor-amount" value="${data.item.amount}"></div>
+                `;
+            } else if (type === 'product') {
+                const catTitle = data.category === 'snacks' ? 'Snack' : 'Ice-cream';
+                editTitle.textContent = `Edit ${catTitle}`;
+                formHtml = `
+                    <div><label>Name</label><input type="text" id="edit-product-name" value="${data.item.name}"></div>
+                    <div><label>Stock</label><input type="number" id="edit-product-stock" value="${data.item.stock}"></div>
+                    <div><label>Cost Price</label><input type="number" id="edit-product-cost" value="${data.item.costPrice}"></div>
+                    <div><label>Selling Price</label><input type="number" id="edit-product-selling" value="${data.item.sellingPrice}"></div>
+                `;
+            } else if (type === 'payment') {
+                editTitle.textContent = 'Edit Payment';
+                formHtml = `
+                    <div><label>Category</label><select id="edit-payment-category">
+                        <option value="Snacks" ${data.item.category === 'Snacks' ? 'selected' : ''}>Snacks</option>
+                        <option value="Ice-cream" ${data.item.category === 'Ice-cream' ? 'selected' : ''}>Ice-cream</option>
+                        <option value="General" ${data.item.category === 'General' ? 'selected' : ''}>General Expense</option>
+                    </select></div>
+                    <div><label>Description</label><input type="text" id="edit-payment-desc" value="${data.item.description}"></div>
+                    <div><label>Quantity (optional)</label><input type="number" id="edit-payment-qty" value="${data.item.quantity || ''}"></div>
+                    <div><label>Amount</label><input type="number" id="edit-payment-amount" value="${data.item.amount}"></div>
+                    <div><label>Status</label><select id="edit-payment-status">
+                        <option value="due" ${data.item.status === 'due' ? 'selected' : ''}>Due</option>
+                        <option value="paid" ${data.item.status === 'paid' ? 'selected' : ''}>Paid</option>
+                    </select></div>
+                `;
+            }
+            
+            editContent.innerHTML = formHtml;
+            editModal.classList.add('show');
+        }
+
+        function saveEditedItem() {
+            if (!currentEditItem) return;
+            
+            const newState = JSON.parse(JSON.stringify(state));
+            
+            if (currentEditItem.type === 'investor') {
+                const name = document.getElementById('edit-investor-name').value;
+                const amount = parseFloat(document.getElementById('edit-investor-amount').value);
+                if (name && amount > 0) {
+                    newState.investors[currentEditItem.index] = { name, amount };
+                }
+            } else if (currentEditItem.type === 'product') {
+                const name = document.getElementById('edit-product-name').value;
+                const stock = parseInt(document.getElementById('edit-product-stock').value) || 0;
+                const costPrice = parseFloat(document.getElementById('edit-product-cost').value);
+                const sellingPrice = parseFloat(document.getElementById('edit-product-selling').value);
+                if (name && costPrice >= 0 && sellingPrice >= 0) {
+                    newState.products[currentEditItem.category][currentEditItem.index] = { name, stock, costPrice, sellingPrice };
+                }
+            } else if (currentEditItem.type === 'payment') {
+                const category = document.getElementById('edit-payment-category').value;
+                const description = document.getElementById('edit-payment-desc').value;
+                const quantity = document.getElementById('edit-payment-qty').value;
+                const amount = parseFloat(document.getElementById('edit-payment-amount').value);
+                const status = document.getElementById('edit-payment-status').value;
+                if (description && amount > 0) {
+                    newState.payments[currentEditItem.index] = {
+                        ...newState.payments[currentEditItem.index],
+                        category, description, quantity, amount, status
+                    };
+                }
+            }
+            
+            saveStateToDB(newState);
+            editModal.classList.remove('show');
+            currentEditItem = null;
+        }
+
         // --- EVENT LISTENERS (Consolidated Logic) ---
         document.querySelector('body').addEventListener('click', (e) => {
             if (e.target.matches('.nav-btn, .sub-nav-btn')) {
@@ -514,6 +622,28 @@
             if (e.target.id === 'add-icecream-btn') { const name = document.getElementById('icecream-name').value; const stock = parseInt(document.getElementById('icecream-stock').value) || 0; const cost = parseFloat(document.getElementById('icecream-cost').value); const selling = parseFloat(document.getElementById('icecream-selling').value); if (name && cost >= 0 && selling >= 0) { const newState = JSON.parse(JSON.stringify(state)); newState.products.iceCreams.push({ name, stock, costPrice: cost, sellingPrice: selling }); saveStateToDB(newState); e.target.closest('.form-card').querySelectorAll('input').forEach(i => i.value=''); } }
             if (e.target.id === 'add-payment-btn') { const cat = document.getElementById('payment-category').value; const desc = document.getElementById('payment-desc').value; const qty = document.getElementById('payment-qty').value; const amount = parseFloat(document.getElementById('payment-amount').value); const isPaid = document.getElementById('payment-is-paid').checked; if(desc && amount > 0) { const newState = JSON.parse(JSON.stringify(state)); newState.payments.push({ id: Date.now(), category:cat, description: desc, quantity: qty, amount, status: isPaid ? 'paid' : 'due', date: new Date().toLocaleDateString() }); saveStateToDB(newState); e.target.closest('.form-card').querySelectorAll('input, select').forEach(i => { if(i.type === 'checkbox') i.checked=false; else i.value=''; }); } }
             if (e.target.id === 'record-sell-btn') { const newState = JSON.parse(JSON.stringify(state)); document.querySelectorAll('.sell-input').forEach(input => { const qty = parseInt(input.value) || 0; if (qty !== 0) { const category = input.dataset.category; const name = input.dataset.name; newState.sells[category][name] = (newState.sells[category][name] || 0) + qty; const product = newState.products[category].find(p => p.name === name); if (product) product.stock -= qty; input.value = ''; } }); saveStateToDB(newState); showAlert('Sells have been updated!', 'Success'); }
+            
+            // Edit button handler
+            if (e.target.matches('.edit-btn')) {
+                const type = e.target.dataset.type;
+                const index = parseInt(e.target.dataset.index);
+                let item;
+                
+                if (type === 'investor') {
+                    item = state.investors[index];
+                    openEditModal(type, { item, index });
+                } else if (type === 'product') {
+                    const category = e.target.dataset.category;
+                    item = state.products[category][index];
+                    openEditModal(type, { item, index, category });
+                } else if (type === 'payment') {
+                    item = state.payments[index];
+                    openEditModal(type, { item, index });
+                }
+            }
+            
+            if (e.target.id === 'edit-save-btn') { saveEditedItem(); }
+            if (e.target.id === 'edit-cancel-btn' || e.target.id === 'edit-modal') { editModal.classList.remove('show'); currentEditItem = null; }
             
             if (e.target.matches('.delete-btn')) { actionToConfirm = { type: e.target.dataset.type, index: e.target.dataset.index, category: e.target.dataset.category, id: e.target.dataset.id }; document.getElementById('confirm-message').textContent = `Are you sure you want to delete this ${actionToConfirm.type}?`; confirmModal.classList.add('show'); }
             if (e.target.id === 'reset-btn') { resetConfirmModal.classList.add('show'); resetPasswordInput.focus(); }
